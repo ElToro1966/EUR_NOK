@@ -1,0 +1,55 @@
+---
+title: "Technical Analysis"
+author: "Eric Eikrem"
+date: "October 2, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("xml2")
+library("dplyr")
+library("ggplot2")
+```
+
+## EUR vs NOK Technical Analysis
+
+```{r, results='asis'}
+analysis_periods <- c(10,100,15,20,30,50,80,130,210,340)
+
+nok_eur <- function(days) {
+  
+  url_to_read <- paste(
+    "https://data.norges-bank.no/api/data/EXR/",
+    "B.EUR.NOK.SP?lastNObservations=",
+    days,
+    sep = ""
+  )
+  
+  nok_eur_obs <- read_xml(url_to_read) %>%
+    xml_find_all("//Obs")
+  
+  dates_closed <- nok_eur_obs %>% 
+    xml_attr("TIME_PERIOD") %>% 
+    as.Date("%Y-%m-%d")
+  
+  nok_eur_daily <- nok_eur_obs %>% 
+    xml_attr("OBS_VALUE") %>% 
+    as.numeric()
+  
+  data.frame(x = dates_closed, y = nok_eur_daily)
+}
+
+nok_eur_plot <- function(nor_eur_data) {
+  
+  ggplot(nok_eur_data, aes(x=dates_closed, y=nok_eur_daily)) +
+    geom_point() +
+    geom_smooth(method = "auto")
+}
+
+for(no_days in analysis_periods) {
+  print(head(nok_eur(no_days)))
+  
+}
+```
+
