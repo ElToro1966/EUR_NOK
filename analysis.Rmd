@@ -1,5 +1,6 @@
 ---
-title: "Technical Analysis"
+title: "NOK/EUR Regression"
+
 author: "Eric Eikrem"
 date: "October 2, 2019"
 output: html_document
@@ -12,10 +13,12 @@ library("dplyr")
 library("ggplot2")
 ```
 
-## EUR vs NOK Technical Analysis
+## NOK vs EUR Regression
 
 ```{r, results='asis'}
-analysis_periods <- c(10,100,15,20,30,50,80,130,210,340)
+analysis_periods <- c(10,15,20,30,50,80,130,210,340)
+dates_closed <- c()
+nok_eur_obs <- c()
 
 nok_eur <- function(days) {
   
@@ -40,15 +43,29 @@ nok_eur <- function(days) {
   data.frame(x = dates_closed, y = nok_eur_daily)
 }
 
-nok_eur_plot <- function(nor_eur_data) {
+nok_eur_plot <- function(nok_eur_data, regression_method) {
   
-  ggplot(nok_eur_data, aes(x=dates_closed, y=nok_eur_daily)) +
+  g <- ggplot(
+    nok_eur_data, 
+    aes(x = x, y = y)
+    ) +
     geom_point() +
-    geom_smooth(method = "auto")
+    geom_smooth(method = regression_method) +
+    labs(
+      title = "NOK / EUR",
+      subtitle = paste(length(nok_eur_data$x), "days", sep = " "),
+      y = "NOKs per EUR",
+      x = "Time-period",
+      caption = paste("NOK per EUR for a time-period of", length(nok_eur_data$x), "days", sep = " ") 
+    )
+  
+  plot(g)
 }
 
 for(no_days in analysis_periods) {
-  print(head(nok_eur(no_days)))
+  
+  nok_eur_plot(nok_eur(no_days), "auto")
+  nok_eur_plot(nok_eur(no_days), "lm")
   
 }
 ```
