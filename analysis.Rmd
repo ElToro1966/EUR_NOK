@@ -11,14 +11,13 @@ knitr::opts_chunk$set(echo = TRUE)
 library("xml2")
 library("dplyr")
 library("ggplot2")
+library("scales")
 ```
 
 ## NOK vs EUR Regression
 
 ```{r, results='asis'}
-analysis_periods <- c(10,15,20,30,50,80,130,210,340)
-dates_closed <- c()
-nok_eur_obs <- c()
+analysis_periods <- c(10,100,200)
 
 nok_eur <- function(days) {
   
@@ -40,24 +39,75 @@ nok_eur <- function(days) {
     xml_attr("OBS_VALUE") %>% 
     as.numeric()
   
-  data.frame(x = dates_closed, y = nok_eur_daily)
+  nok_eur_data <- data.frame(x = dates_closed, y = nok_eur_daily)
+  colnames(nok_eur_data) <- c("Date", "NOK_EUR")
+  
+  
+  return(nok_eur_data)
 }
+
+nok_key_policy_rate_change <- function(days) {
+  
+  url_key_policy_rates <- "https://data.norges-bank.no/api/data/IR/B.KPRA.RR.R"
+  
+  key_policy_rates_obs <- read_xml(url_key_policy_rates) %>%
+    xml_find_all("//Obs")
+  
+  key_policy_rates_subset <- key_policy_rates_obs[
+    (length(key_policy_rates_obs) - days + 1):length(key_policy_rates_obs)
+    ]
+  
+  dates_closed_rates <- key_policy_rates_subset %>%
+    xml_attr("TIME_PERIOD") %>%
+    as.Date("%Y-%m-%d")
+  
+  rates_daily <- key_policy_rates_subset %>%
+    xml_attr("OBS_VALUE") %>%
+    as.numeric()
+  
+  nok_key_policy_rate_data <- data.frame(x = dates_closed_rates, y = rates_daily)
+  colnames(nok_key_policy_rate_data) <- c("Date", "Key_policy_rate")
+  for(row in 1:nrow(nok_key_policy_rate_data)) {
+    if(row == 1) {
+      rate_change <- c(0)
+    } else {
+      change_from_previous <- nok_key_policy_rate_data$Key_policy_rate[row] - nok_key_policy_rate_data$Key_policy_rate[row - 1]
+      rate_change <- c(rate_change, change_from_previous)
+    }
+  }
+  nok_key_policy_rate_data["Change"] <- rate_change
+  
+  nok_key_policy_rate_change_data <- filter(nok_key_policy_rate_data, Change != 0)
+  print(head(nok_key_policy_rate_change_data))
+  return(nok_key_policy_rate_change_data)
+  
+} 
 
 nok_eur_plot <- function(nok_eur_data, regression_method) {
   
+  print(head(nok_eur_data))
+
   g <- ggplot(
-    nok_eur_data, 
-    aes(x = x, y = y)
-    ) +
-    geom_point() +
+      nok_eur_data, 
+      aes(x = Date, y = NOK_EUR)
+      ) + 
     geom_smooth(method = regression_method) +
+    geom_point() + 
     labs(
-      title = "NOK / EUR",
-      subtitle = paste(length(nok_eur_data$x), "days", sep = " "),
-      y = "NOKs per EUR",
-      x = "Time-period",
-      caption = paste("NOK per EUR for a time-period of", length(nok_eur_data$x), "days", sep = " ") 
-    )
+      x = "Date", 
+      y = paste("NOK per EUR for the last", length(nok_eur_data$NOK_EUR), "working-days", sep = " "),
+      title = "NOK per EUR",
+      subtitle = paste("From", min(nok_eur_data$Date), "to", max(nok_eur_data$Date), sep = " ")
+      ) + 
+    theme(
+      axis.title.y = element_text(color = "blue")
+      )
+  
+  rate_changes <- nok_key_policy_rate_change(length(nok_eur_data$NOK_EUR))
+  
+  for(row in 1:nrow(rate_changes)) {
+    g + geom_vline(xintercept = rate_changes$Date[row], colour = "red", size = 1, linetype = 4)
+  }
   
   plot(g)
 }
